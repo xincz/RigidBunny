@@ -1,6 +1,6 @@
 /**
- * Free Form Deformation (FFD)
- * Implementation by Xinpei Li
+ * Rigid Body Dynamics
+ * Implementation by Xincz
  */
 if (WEBGL.isWebGL2Available() === false) {
     document.body.appendChild(WEBGL.getWebGL2ErrorMessage());

@@ -9,7 +9,6 @@ function getCrossMatrix(vec) {
 }
 
 function matrixSubtraction(mat1, mat2) {
-    // console.log(mat2);
     var result = new THREE.Matrix4();
     var elements = new Array(16);
     for (var i=0; i<16; i++) {
@@ -21,8 +20,8 @@ function matrixSubtraction(mat1, mat2) {
         elements[8], elements[9], elements[10], 0,
         0, 0, 0, 1,
     );
-    return result.transpose();
-    // return result;  // TODO: check transpose
+    // return result.transpose();
+    return result;  // TODO: check transpose
 }
 
 // function matrixVectorMultiply(mat4, vec3) {
@@ -50,8 +49,6 @@ class RigidBody {
         this.angularDecay = 0.95;
         this.restitution = 0.2;
         this.muT = 0.2;
-
-        // this.mesh = mesh.clone();
         this.mesh = mesh;  // 这才是真正的同一个对象！
 
         this.start();
@@ -66,13 +63,12 @@ class RigidBody {
         let vertices = new Array(position.count);  // There are duplicates!
         for (let i=0; i<position.count; i++) {
             this.mass += m;
-            vertices[i] = new THREE.Vector3(
-                position.array[i*3], position.array[i*3+1], position.array[i*3+2]);
+            vertices[i] = new THREE.Vector3(position.array[i*3], position.array[i*3+1], position.array[i*3+2]);
         }
         this.vertices = vertices;
 
         // Compute Inertia matrix
-        for (let i=0; i<vertices.length; i++) {  // TODO: change to XYZ?
+        for (let i=0; i<vertices.length; i++) {
             let diag = m*vertices[i].length()*vertices[i].length();
             this.Iref.elements[0*4+0] += diag;  // beware of transpose
             this.Iref.elements[1*4+1] += diag;
@@ -88,10 +84,10 @@ class RigidBody {
             this.Iref.elements[2*4+2] -= m*vertices[i].z*vertices[i].z;
         }
         this.Iref.elements[3*4+3] = 1;
-        this.Iref = this.Iref.transpose();  // TODO: check transpose
+        this.Iref = this.Iref.transpose();
     }
 
-    CollisionImpulse(P, N) {
+    collisionImpulse(P, N) {
         let x = this.mesh.position.clone();  // 0 3 0
         let rot = this.mesh.rotation.clone();
         let q = new THREE.Quaternion().setFromEuler(rot);
@@ -100,7 +96,7 @@ class RigidBody {
         this.R = R;
 
         let sum = 0;
-        let averagePosition = new THREE.Vector3(0, 0, 0);
+        let avgPos = new THREE.Vector3(0, 0, 0);
 
         for (let i=0; i<this.vertices.length; i++) {
             // Calculate position and velocity of each mesh vertex
@@ -115,20 +111,15 @@ class RigidBody {
 
             // Sum and average
             sum += 1;
-            averagePosition = averagePosition.clone().multiplyScalar(1 - 1/sum).add(xi.clone().multiplyScalar(1/sum));
+            avgPos = avgPos.clone().multiplyScalar(1 - 1/sum).add(xi.clone().multiplyScalar(1/sum));
         }
 
-        if (sum == 0) {
-            // console.log("no collision");
-            return;  // no collision
-        }
-        // console.log("sum", sum);
-        // console.log("There is collision!");
+        if (sum == 0) return;  // no collision
 
         /* Otherwise, collision happens! */
         // Impulse method (for the average colliding position)
-        let RriAvg = averagePosition.clone().sub(x);
-        let RriStar = getCrossMatrix(RriAvg);  // TODO: check this!
+        let RriAvg = avgPos.clone().sub(x);
+        let RriStar = getCrossMatrix(RriAvg);
         let viAvg = this.v.clone().add(this.w.clone().cross(RriAvg));
 
 		// Calculate new vi
@@ -150,7 +141,6 @@ class RigidBody {
         viDiff = viDiff.applyMatrix4(K.getInverse(K));
         let j = new THREE.Vector3(viDiff.x, viDiff.y, viDiff.z);
 
-        // console.log("j", j.length());
         if (j.length() < 400000) this.restitution *= 0.9;
 
         // Update v and w
@@ -170,31 +160,26 @@ class RigidBody {
         }
         if (keyboard.pressed("L")) {
             console.log("launched!");
-            // this.v.set(0,0,0);
             this.v.set(0,2,-5);
             this.launched = true;
         }
 
-
         // Update velocity
         let g = new THREE.Vector3(0, -1, 0).multiplyScalar(10);  // gravity
-
         this.v = this.v.add(g.multiplyScalar(this.dt));
         this.v = this.v.multiplyScalar(this.linearDecay);
         this.w = this.w.multiplyScalar(this.angularDecay);
 
         // Collision Impulse
-        this.CollisionImpulse(new THREE.Vector3(0, 0.1, 0), new THREE.Vector3(0, 1, 0));
-        this.CollisionImpulse(new THREE.Vector3(0, 0, -2), new THREE.Vector3(0, 1/2, Math.sqrt(3)/2));
-
+        this.collisionImpulse(new THREE.Vector3(0, 0.1, 0), new THREE.Vector3(0, 1, 0));
+        this.collisionImpulse(new THREE.Vector3(0, 0, -2), new THREE.Vector3(0, 1/2, Math.sqrt(3)/2));
 
         // Update position & orientation
-        let pos = this.mesh.position.clone();  // 复制了副本！
+        let pos = this.mesh.position.clone();
         pos = pos.add(this.v.clone().multiplyScalar(this.dt));
         let rot = this.mesh.rotation.clone();  // Euler
         let q = new THREE.Quaternion().setFromEuler(rot);
-        let qt = new THREE.Quaternion(
-            this.w.x * this.dt/2, this.w.y * this.dt/2, this.w.z * this.dt/2, 0);
+        let qt = new THREE.Quaternion(this.w.x * this.dt/2, this.w.y * this.dt/2, this.w.z * this.dt/2, 0);
         qt = qt.multiply(q);
         q = q.set(q.x + qt.x, q.y + qt.y, q.z + qt.z, q.w + qt.w);
 
@@ -203,6 +188,7 @@ class RigidBody {
             pos = this.mesh.position.clone();
         }
 
+        // Update position and rotation
         this.mesh.position.set(pos.x, pos.y, pos.z);
         this.mesh.rotation.setFromQuaternion(q);
     }

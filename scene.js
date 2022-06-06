@@ -123,7 +123,7 @@ function initFileObjects() {
     // Load models
     for (var _key in models) {
         console.log("Key: ", _key);
-        (function(key) {  // TODO: unwrap this function
+        (function(key) {
             var objLoader = new THREE.OBJLoader(manager);
             objLoader.load(models[key].obj, function(object) {
                 object.traverse(function(child) {
